@@ -1,6 +1,8 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.common.exceptions import NoSuchElementException
 
 from dataclasses import dataclass
@@ -8,6 +10,7 @@ from urllib.parse import urljoin
 from pathlib import Path
 
 import csv
+import time
 
 
 BASE_URL = "https://webscraper.io/"
@@ -100,15 +103,19 @@ def get_products_from_page(
         pass
 
     while True:
-        more_button = driver.find_elements(
-            By.CSS_SELECTOR,
-            ".btn.btn-lg.btn-block.btn-primary.ecomerce-items-scroll-more"
-        )
+        try:
+            more_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((
+                    By.CSS_SELECTOR, 
+                    ".ecomerce-items-scroll-more"
+                ))
+            )
 
-        if not more_button or not more_button[0].is_displayed():
+            click_button(more_button, driver)
+            time.sleep(1)
+
+        except:
             break
-
-        click_button(more_button[0], driver)
 
     products = []
     row = driver.find_elements(
@@ -140,7 +147,10 @@ def write_products_to_csv(products: list[Product], filename: str) -> None:
             ])
 
 
-def get_all_products(driver: webdriver.Chrome = webdriver.Chrome()) -> None:
+def get_all_products(driver: webdriver.Chrome = None) -> None:
+    if driver is None:
+        driver = webdriver.Chrome()
+
     pages = [
         (HOME_URL, "home.csv"),
         (urljoin(HOME_URL, "computers"), "computers.csv"),
