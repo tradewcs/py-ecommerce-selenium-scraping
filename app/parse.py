@@ -1,4 +1,5 @@
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as EC
@@ -66,12 +67,15 @@ def parse_row(row: list[WebElement]) -> list[Product]:
             )
             rating = len(rating_stars)
 
-        num_of_reviews = int(
-            item.find_element(
-                By.CSS_SELECTOR,
-                "span[itemprop='reviewCount']"
-            ).text
-        )
+        try:
+            num_of_reviews = int(
+                item.find_element(
+                    By.CSS_SELECTOR,
+                    "span[itemprop='reviewCount']"
+                ).text
+            )
+        except NoSuchElementException:
+            num_of_reviews = 0
 
         products.append(
             Product(
@@ -99,20 +103,31 @@ def get_products_from_page(
     try:
         cookie_button = driver.find_element(By.CLASS_NAME, "acceptCookies")
         click_button(cookie_button, driver)
-    except Exception:
+    except:
         pass
 
     while True:
         try:
             more_button = WebDriverWait(driver, 10).until(
                 EC.element_to_be_clickable((
-                    By.CSS_SELECTOR, 
+                    By.CSS_SELECTOR,
                     ".ecomerce-items-scroll-more"
                 ))
             )
 
+            prev_count = len(driver.find_elements(
+                By.CSS_SELECTOR,
+                ".col-md-4.col-xl-4.col-lg-4"
+            ))
+
             click_button(more_button, driver)
-            time.sleep(1)
+
+            WebDriverWait(driver, 10).until(
+                lambda d: len(d.find_elements(
+                    By.CSS_SELECTOR,
+                    ".col-md-4.col-xl-4.col-lg-4"
+                )) > prev_count
+            )
 
         except:
             break
@@ -147,23 +162,27 @@ def write_products_to_csv(products: list[Product], filename: str) -> None:
             ])
 
 
-def get_all_products(driver: webdriver.Chrome = None) -> None:
-    if driver is None:
-        driver = webdriver.Chrome()
+def get_all_products(options: Options = None) -> None:
+    driver = webdriver.Chrome()
 
-    pages = [
-        (HOME_URL, "home.csv"),
-        (urljoin(HOME_URL, "computers"), "computers.csv"),
-        (urljoin(HOME_URL, "computers/laptops"), "laptops.csv"),
-        (urljoin(HOME_URL, "computers/tablets"), "tablets.csv"),
-        (urljoin(HOME_URL, "phones"), "phones.csv"),
-        (urljoin(HOME_URL, "phones/touch"), "touch.csv"),
-    ]
+    try:
+        pages = [
+            (HOME_URL, "home.csv"),
+            (urljoin(HOME_URL, "computers"), "computers.csv"),
+            (urljoin(HOME_URL, "computers/laptops"), "laptops.csv"),
+            (urljoin(HOME_URL, "computers/tablets"), "tablets.csv"),
+            (urljoin(HOME_URL, "phones"), "phones.csv"),
+            (urljoin(HOME_URL, "phones/touch"), "touch.csv"),
+        ]
 
-    for url, filename in pages:
-        products = get_products_from_page(url, driver)
-        write_products_to_csv(products, filename)
+        for url, filename in pages:
+            products = get_products_from_page(url, driver)
+            write_products_to_csv(products, filename)
+    finally:
+        driver.quit()
 
 
 if __name__ == "__main__":
-    get_all_products()
+    options = Options()
+    options.add_argument("--headless")
+    get_all_products(options=options)
